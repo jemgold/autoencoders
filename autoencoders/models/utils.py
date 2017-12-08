@@ -1,4 +1,4 @@
-from torch import nn, init
+from torch import nn
 import numpy as np
 
 
@@ -25,5 +25,5 @@ def gaussian_weights_init(m):
 
 def xavier_weights_init(m):
     if isinstance(m, nn.Conv2d):
-        init.xavier_uniform(m.weight, gain=np.sqrt(2))
-        init.constant(m.bias, 0.1)
+        nn.init.xavier_uniform(m.weight, gain=np.sqrt(2))
+        nn.init.constant(m.bias, 0.1)

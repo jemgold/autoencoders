@@ -66,32 +66,55 @@ def vae_loss(output, target, mu, logvar):
 
 def train(batch_size=512, epochs=100):
     from torch.autograd import Variable
-    import torchnet as tnt
-    from torchnet.engine import Engine
+    # import torchnet as tnt
+    # from torchnet.engine import Engine
+    from ignite.trainer import Trainer, TrainingEvents
+    import logging
+    logger = logging.getLogger('ignite')
+    logger.addHandler(logging.StreamHandler())
+    logger.setLevel(logging.INFO)
     from tensorboardX import SummaryWriter
     from autoencoders.models.sampling import sample_vae
-    import autoencoders.data.mnist as mnist
+    from autoencoders.data.mnist import mnist_dataloader
     from autoencoders.utils.tensorboard import run_path
-
+    import numpy as np
     use_gpu = torch.cuda.is_available()
 
     writer = SummaryWriter(run_path('vae'))
 
-    engine = Engine()
-    meter_loss = tnt.meter.AverageValueMeter()
-
     model = VariationalAutoencoder()
     optimizer = torch.optim.Adam(model.parameters(), 3e-4)
 
-    dataloader = mnist(batch_size=batch_size)
+    train_loader = mnist_dataloader(
+        path='data', batch_size=batch_size, download=True)
+
+    val_loader = mnist_dataloader(
+        path='data', batch_size=batch_size, train=False, download=True)
 
     if use_gpu:
         model.cuda()
         vae_loss.cuda()
 
-    def h(sample):
-        inputs, _ = sample
+    def training_update_function(batch):
+        model.train()
+        optimizer.zero_grad()
 
+        inputs, _ = batch
+        inputs = Variable(inputs)
+        if use_gpu:
+            inputs = inputs.cuda()
+
+        output, mu, logvar = model(inputs)
+        loss = vae_loss(output, inputs, mu, logvar)
+        loss.backward()
+        optimizer.step()
+
+        return loss.data[0]
+
+    def validation_inference_function(batch):
+        model.eval()
+
+        inputs, _ = batch
         inputs = Variable(inputs)
         if use_gpu:
             inputs = inputs.cuda()
@@ -99,26 +122,31 @@ def train(batch_size=512, epochs=100):
         output, mu, logvar = model(inputs)
         loss = vae_loss(output, inputs, mu, logvar)
 
-        return loss, output
+        return loss.data[0]
 
-    def on_forward(state):
-        meter_loss.add(state['loss'].data[0])
+    # def on_end_epoch(state):
 
-    def on_start_epoch(state):
-        meter_loss.reset()
+    #     meter_loss.reset()
 
-    def on_end_epoch(state):
-        writer.add_scalar('loss', meter_loss.value()[0], state['epoch'])
+    def on_epoch_competed(trainer, writer):
+        writer.add_scalar(
+            'loss/training loss', np.mean(trainer.training_history), trainer.current_epoch)
+
+    def on_validation(trainer, writer):
+        writer.add_scalar('loss/validation loss',
+                          np.mean(trainer.validation_history), trainer.current_epoch)
         writer.add_image('image', sample_vae(
-            model, dataloader), state['epoch'])
+            model, val_loader), trainer.current_epoch)
 
-        meter_loss.reset()
+    trainer = Trainer(train_loader, training_update_function,
+                      val_loader, validation_inference_function)
 
-    # engine.hooks['on_sample'] = on_sample
-    engine.hooks['on_forward'] = on_forward
-    engine.hooks['on_start_epoch'] = on_start_epoch
-    engine.hooks['on_end_epoch'] = on_end_epoch
-    engine.train(h, dataloader, maxepoch=epochs, optimizer=optimizer)
+    trainer.add_event_handler(TrainingEvents.TRAINING_EPOCH_COMPLETED,
+                              on_epoch_competed, writer)
+    trainer.add_event_handler(
+        TrainingEvents.VALIDATION_COMPLETED, on_validation, writer)
+
+    trainer.run(max_epochs=1)
 
 
 if __name__ == '__main__':
