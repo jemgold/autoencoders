@@ -69,7 +69,7 @@ def train(epochs=10, batch_size=64, latent_dim=2,
     from autoencoders.models.loss import VAELoss
 
     experiment_name = run_path(
-        'cvae_l{}_h{}_adam_3e-4'.format(latent_dim, batch_size))
+        'cvae_l{}_h{}_adam_3e-4'.format(latent_dim, hidden_dim))
 
     writer = SummaryWriter(experiment_name)
 
