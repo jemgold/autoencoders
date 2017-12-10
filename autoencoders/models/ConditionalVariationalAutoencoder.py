@@ -68,7 +68,7 @@ def train(batch_size=512, epochs=100):
     from autoencoders.models.loss import VAELoss
     use_gpu = torch.cuda.is_available()
 
-    writer = SummaryWriter(run_path('vae'))
+    writer = SummaryWriter(run_path('cvae'))
 
     model = ConditionalVariationalAutoencoder(n_classes=10)
     optimizer = torch.optim.Adam(model.parameters(), 3e-4)
