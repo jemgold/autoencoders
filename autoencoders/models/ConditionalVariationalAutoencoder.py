@@ -68,7 +68,10 @@ def train(epochs=10, batch_size=64, latent_dim=2,
     from autoencoders.utils.tensorboard import run_path
     from autoencoders.models.loss import VAELoss
 
-    writer = SummaryWriter(run_path('cvae'))
+    experiment_name = run_path(
+        'cvae_l{}_h{}_adam_3e-4'.format(latent_dim, batch_size))
+
+    writer = SummaryWriter(experiment_name)
 
     model = ConditionalVariationalAutoencoder(
         latent_dim=latent_dim, hidden_dim=hidden_dim, n_classes=10)
@@ -138,6 +141,12 @@ def train(epochs=10, batch_size=64, latent_dim=2,
         writer.add_image('image', cvae_reconstructions(
             model, val_loader), trainer.current_epoch)
 
+    def on_complete(trainer):
+        checkpoint_path = 'models/{}.cpt'.format(
+            experiment_name.split('/')[-1])
+
+        torch.save(model.state_dict(), checkpoint_path)
+
     trainer = Trainer(train_loader, training_update_function,
                       val_loader, validation_inference_function)
 
@@ -145,6 +154,8 @@ def train(epochs=10, batch_size=64, latent_dim=2,
                               on_epoch_competed, writer)
     trainer.add_event_handler(
         TrainingEvents.VALIDATION_COMPLETED, on_validation, writer)
+
+    trainer.add_event_handler(TrainingEvents.TRAINING_COMPLETED, on_complete)
 
     trainer.run(max_epochs=epochs)
 
