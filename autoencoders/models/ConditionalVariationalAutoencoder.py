@@ -67,9 +67,12 @@ def train(epochs=10, batch_size=64, latent_dim=2,
     from autoencoders.data.mnist import mnist_dataloader
     from autoencoders.utils.tensorboard import run_path
     from autoencoders.models.loss import VAELoss
+    from autoencoders.utils.notifications import send_training_complete_push
 
     experiment_name = run_path(
-        'cvae_l{}_h{}_b{}_adam_3e-4'.format(latent_dim, hidden_dim, batch_size))
+        'cvae/l{}_h{}_b{}_adam_3e-4'.format(latent_dim, hidden_dim, batch_size))
+
+    checkpoint_path = '_'.join(experiment_name.split('/')[1:])
 
     writer = SummaryWriter(experiment_name)
 
@@ -142,10 +145,10 @@ def train(epochs=10, batch_size=64, latent_dim=2,
             model, val_loader), trainer.current_epoch)
 
     def on_complete(trainer):
-        checkpoint_path = 'models/{}.cpt'.format(
-            experiment_name.split('/')[-1])
+        desc = 'Val Loss: {}'.format(np.mean(trainer.validation_history))
+        send_training_complete_push(checkpoint_path, desc)
 
-        torch.save(model.state_dict(), checkpoint_path)
+        torch.save(model.state_dict(), 'models/{}.cpt'.format(checkpoint_path))
 
     trainer = Trainer(train_loader, training_update_function,
                       val_loader, validation_inference_function)
