@@ -53,7 +53,8 @@ class ConditionalVariationalAutoencoder(nn.Module):
         return decoded, mu, logvar
 
 
-def train(batch_size=512, epochs=100):
+def train(epochs=10, batch_size=64, latent_dim=2,
+          hidden_dim=400, use_gpu=False):
     from torch.autograd import Variable
     from ignite.trainer import Trainer, TrainingEvents
     import logging
@@ -66,11 +67,11 @@ def train(batch_size=512, epochs=100):
     from autoencoders.data.mnist import mnist_dataloader
     from autoencoders.utils.tensorboard import run_path
     from autoencoders.models.loss import VAELoss
-    use_gpu = torch.cuda.is_available()
 
     writer = SummaryWriter(run_path('cvae'))
 
-    model = ConditionalVariationalAutoencoder(n_classes=10)
+    model = ConditionalVariationalAutoencoder(
+        latent_dim=latent_dim, hidden_dim=hidden_dim, n_classes=10)
     optimizer = torch.optim.Adam(model.parameters(), 3e-4)
     criterion = VAELoss()
 
@@ -149,4 +150,18 @@ def train(batch_size=512, epochs=100):
 
 
 if __name__ == '__main__':
-    train(epochs=1, batch_size=64)
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description='Conditional Variational Autoencoders')
+
+    parser.add_argument('--epochs', type=int, default=10)
+    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--latent_dim', type=int, default=2)
+    parser.add_argument('--hidden_dim', type=int, default=400)
+    parser.add_argument('--use_gpu', action="store_true", default=False)
+
+    opts = parser.parse_args()
+
+    train(epochs=opts.epochs, batch_size=opts.batch_size,
+          latent_dim=opts.latent_dim, hidden_dim=opts.hidden_dim, use_gpu=opts.use_gpu)
