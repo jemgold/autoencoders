@@ -12,10 +12,11 @@ def kl_divergence(mu, sigma):
     return torch.sum(torch.exp(sigma) + mu**2 - 1. - sigma)
 
 
-def vae_loss(output, target, mu, sigma, kl_loss_weight=0.5):
-    recon_loss = F.binary_cross_entropy(output, target, size_average=False)
+def vae_loss(output, target, mu, sigma, kl_loss_weight=0.5, size_average):
+    recon_loss = F.binary_cross_entropy(
+        output, target, size_average=size_average)
 
-    kl_loss = kl_loss_weight * kl_divergence(mu, sigma)
+    kl_loss = (kl_loss_weight * kl_divergence(mu, sigma)) / output.size(0)
 
     return recon_loss + kl_loss
 
@@ -26,4 +27,4 @@ class VAELoss(_Loss):
         self.kl_loss_weight = kl_loss_weight
 
     def forward(self, output, target, mu, logvar):
-        return vae_loss(output, target, mu, logvar, self.kl_loss_weight)
+        return vae_loss(output, target, mu, logvar, self.kl_loss_weight, self.size_average)
