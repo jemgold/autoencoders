@@ -1,5 +1,8 @@
+import torch
 from torch import nn
 import numpy as np
+
+# Layers
 
 
 class Lambda(nn.Module):
@@ -17,6 +20,8 @@ def flatten(x):
 
 Flatten = Lambda(flatten)
 
+# Inits
+
 
 def gaussian_weights_init(m):
     if isinstance(m, nn.Conv2d):
@@ -27,3 +32,9 @@ def xavier_weights_init(m):
     if isinstance(m, nn.Conv2d):
         nn.init.xavier_uniform(m.weight, gain=np.sqrt(2))
         nn.init.constant(m.bias, 0.1)
+
+
+def to_one_hot(y, batch_size=8, n_classes=1):
+    y_one_hot = torch.zeros(batch_size, n_classes)
+
+    return y_one_hot.scatter_(1, y.unsqueeze(1), 1)
