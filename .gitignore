@@ -73,3 +73,4 @@ target/
 /data/
 runs
 /.vscode
+.DS_Store
