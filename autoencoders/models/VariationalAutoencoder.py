@@ -1,5 +1,5 @@
 import torch
-from torch import nn, optim
+from torch import nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from autoencoders.models.utils import flatten
@@ -51,32 +51,18 @@ class VariationalAutoencoder(nn.Module):
         return decoded, mu, logvar
 
 
-def vae_loss(output, target, mu, logvar):
-    recon_loss = F.binary_cross_entropy(
-        output, target.view(-1, 784), size_average=False)
-
-    # see Appendix B from VAE paper:
-    # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
-    # https://arxiv.org/abs/1312.6114
-    # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
-    kl_loss = 0.5 * torch.sum(torch.exp(logvar) + mu**2 - 1. - logvar)
-#     KLD / 512 * 784
-    return recon_loss + kl_loss
-
-
 def train(batch_size=512, epochs=100):
     from torch.autograd import Variable
-    # import torchnet as tnt
-    # from torchnet.engine import Engine
     from ignite.trainer import Trainer, TrainingEvents
     import logging
     logger = logging.getLogger('ignite')
     logger.addHandler(logging.StreamHandler())
     logger.setLevel(logging.INFO)
     from tensorboardX import SummaryWriter
-    from autoencoders.models.sampling import sample_vae
+    from autoencoders.models.sampling import vae_reconstructions
     from autoencoders.data.mnist import mnist_dataloader
     from autoencoders.utils.tensorboard import run_path
+    from autoencoders.models.loss import VAELoss
     import numpy as np
     use_gpu = torch.cuda.is_available()
 
@@ -84,6 +70,7 @@ def train(batch_size=512, epochs=100):
 
     model = VariationalAutoencoder()
     optimizer = torch.optim.Adam(model.parameters(), 3e-4)
+    criterion = VAELoss()
 
     train_loader = mnist_dataloader(
         path='data', batch_size=batch_size, download=True)
@@ -93,7 +80,7 @@ def train(batch_size=512, epochs=100):
 
     if use_gpu:
         model.cuda()
-        vae_loss.cuda()
+        criterion.cuda()
 
     def training_update_function(batch):
         model.train()
@@ -105,7 +92,7 @@ def train(batch_size=512, epochs=100):
             inputs = inputs.cuda()
 
         output, mu, logvar = model(inputs)
-        loss = vae_loss(output, inputs, mu, logvar)
+        loss = criterion(output, inputs.view(-1, 784), mu, logvar)
         loss.backward()
         optimizer.step()
 
@@ -120,22 +107,22 @@ def train(batch_size=512, epochs=100):
             inputs = inputs.cuda()
 
         output, mu, logvar = model(inputs)
-        loss = vae_loss(output, inputs, mu, logvar)
+        loss = criterion(output, inputs, mu, logvar)
 
         return loss.data[0]
 
-    # def on_end_epoch(state):
-
-    #     meter_loss.reset()
-
     def on_epoch_competed(trainer, writer):
         writer.add_scalar(
-            'loss/training loss', np.mean(trainer.training_history), trainer.current_epoch)
+            'loss/training loss',
+            np.mean(trainer.training_history),
+            trainer.current_epoch)
 
     def on_validation(trainer, writer):
         writer.add_scalar('loss/validation loss',
-                          np.mean(trainer.validation_history), trainer.current_epoch)
-        writer.add_image('image', sample_vae(
+                          np.mean(trainer.validation_history),
+                          trainer.current_epoch)
+
+        writer.add_image('image', vae_reconstructions(
             model, val_loader), trainer.current_epoch)
 
     trainer = Trainer(train_loader, training_update_function,
@@ -146,7 +133,7 @@ def train(batch_size=512, epochs=100):
     trainer.add_event_handler(
         TrainingEvents.VALIDATION_COMPLETED, on_validation, writer)
 
-    trainer.run(max_epochs=1)
+    trainer.run(max_epochs=epochs)
 
 
 if __name__ == '__main__':

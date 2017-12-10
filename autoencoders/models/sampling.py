@@ -17,7 +17,7 @@ def sample(model, loader, n=10):
     return vutils.make_grid(torch.cat([imgs.data, reconstructions.data]), n)
 
 
-def sample_vae(model, loader, n=10):
+def vae_reconstructions(model, loader, n=10):
     model.eval()
     imgs = next(iter(loader))[0][:n]
     imgs = Variable(imgs)
